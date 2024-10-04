@@ -37,6 +37,17 @@ public:
    virtual void VisitDeclStmt(DeclStmt * declstmt) {
 	   mEnv->decl(declstmt);
    }
+   virtual void VisitIntegerLiteral(IntegerLiteral* integer) {
+       mEnv->intliteral(integer);
+   }
+   //for debugging
+   virtual void VisitStmt(Stmt * stmt) {
+      printf("*********************************\n");
+      stmt->dump();
+      for (auto *substmt : stmt->children())
+      if (substmt)
+        this->Visit(substmt);
+   }
 private:
    Environment * mEnv;
 };

@@ -26,7 +26,7 @@ public:
    }
 
    void bindDecl(Decl* decl, int val) {
-      mVars[decl] = val;
+	  mVars[decl] = val;
    }    
    int getDeclVal(Decl * decl) {
       assert (mVars.find(decl) != mVars.end());
@@ -72,7 +72,6 @@ public:
    Environment() : mStack(), mFree(NULL), mMalloc(NULL), mInput(NULL), mOutput(NULL), mEntry(NULL) {
    }
 
-
    /// Initialize the Environment
    void init(TranslationUnitDecl * unit) {
 	   for (TranslationUnitDecl::decl_iterator i =unit->decls_begin(), e = unit->decls_end(); i != e; ++ i) {
@@ -106,12 +105,16 @@ public:
 	   }
    }
 
+   void intliteral(IntegerLiteral * integer) {
+       mStack.back().bindStmt(integer, integer->getValue().getSExtValue());
+	}
+
    void decl(DeclStmt * declstmt) {
 	   for (DeclStmt::decl_iterator it = declstmt->decl_begin(), ie = declstmt->decl_end();
 			   it != ie; ++ it) {
 		   Decl * decl = *it;
 		   if (VarDecl * vardecl = dyn_cast<VarDecl>(decl)) {
-			   mStack.back().bindDecl(vardecl, 0);
+			   mStack.back().bindDecl(vardecl, 10);
 		   }
 	   }
    }
