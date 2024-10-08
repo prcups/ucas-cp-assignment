@@ -14,3 +14,4 @@ int main() {
    else b = 20;
    PRINT(b);
 }
+// kate: indent-mode cstyle; indent-width 1; replace-tabs on; 

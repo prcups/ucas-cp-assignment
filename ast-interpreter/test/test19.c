@@ -17,3 +17,4 @@ int main() {
    PRINT(*c[0]);
    PRINT(*c[1]);
 }
+// kate: indent-mode cstyle; indent-width 1; replace-tabs on; 

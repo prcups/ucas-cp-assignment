@@ -20,3 +20,4 @@ int main() {
    FREE(a);
    FREE((int *)b);
 }
+// kate: indent-mode cstyle; indent-width 1; replace-tabs on; 

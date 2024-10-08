@@ -20,3 +20,4 @@ int main() {
    return 0;
 }
 
+// kate: indent-mode cstyle; indent-width 1; replace-tabs on; 
