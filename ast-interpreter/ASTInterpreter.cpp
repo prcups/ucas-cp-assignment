@@ -32,13 +32,21 @@ public:
   }
   virtual void VisitCallExpr(CallExpr *call) {
     VisitStmt(call);
-    mEnv->call(call);
+    if (!mEnv->tryCallBuiltInFunc(call)) {
+      mEnv->createFuncStack(call);
+      Visit(call->getDirectCallee()->getBody());
+      mEnv->deleteFuncStack(call);
+    }
   }
   virtual void VisitDeclStmt(DeclStmt *declstmt) { mEnv->decl(declstmt); }
   virtual void VisitIntegerLiteral(IntegerLiteral *integer) {
     mEnv->intliteral(integer);
   }
-  // for debugging
+  virtual void VisitReturnStmt(ReturnStmt *retstmt) {
+    VisitStmt(retstmt);
+    mEnv->ret(retstmt);
+  }
+
   virtual void VisitStmt(Stmt *stmt) {
     printf("*********************************\n");
     stmt->dump();
@@ -60,16 +68,16 @@ public:
   virtual void HandleTranslationUnit(clang::ASTContext &Context) {
     TranslationUnitDecl *decl = Context.getTranslationUnitDecl();
     std::vector <VarDecl *> gVarDeclList;
-    mEnv.Stage1Init(decl, gVarDeclList);
+    mEnv.stage1Init(decl, gVarDeclList);
 
     for (auto vdecl : gVarDeclList) {
       if (vdecl->hasInit()) {
         mVisitor.Visit(vdecl->getInit());
       }
     }
-    mEnv.Stage2Init(gVarDeclList);
+    mEnv.stage2Init(gVarDeclList);
 
-    FunctionDecl *entry = mEnv.getEntry();
+    auto *entry = mEnv.getEntry();
     mVisitor.VisitStmt(entry->getBody());
   }
 
@@ -94,4 +102,3 @@ int main(int argc, char **argv) {
         argv[1]);
   }
 }
-// kate: indent-mode cstyle; indent-width 1; replace-tabs on;

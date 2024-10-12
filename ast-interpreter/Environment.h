@@ -25,6 +25,7 @@ class StackFrame {
   Stmt *mPC;
 
 public:
+  int retValue = 0;
   StackFrame() : mVars(), mExprs(), mPC() {}
 
   void bindDecl(Decl *decl, int val) { mVars[decl] = val; }
@@ -92,7 +93,7 @@ public:
         mEntry(NULL) {}
 
   /// Initialize the Environment
-  void Stage1Init(TranslationUnitDecl *unit, std::vector <VarDecl *> & gVarDeclList) {
+  void stage1Init(TranslationUnitDecl *unit, std::vector <VarDecl *> & gVarDeclList) {
     mStack.push_back(StackFrame());
     for (TranslationUnitDecl::decl_iterator i = unit->decls_begin(),
                                             e = unit->decls_end();
@@ -114,7 +115,7 @@ public:
     }
   }
 
-  void Stage2Init(std::vector <VarDecl *> & gVarDeclList) {
+  void stage2Init(std::vector <VarDecl *> & gVarDeclList) {
     for (auto vdecl : gVarDeclList) {
       Stmt *initStmt = vdecl->getInit();
       if (auto rel = mStack.back().tryGetStmtVal(initStmt)) {
@@ -163,8 +164,12 @@ public:
     if (declref->getType()->isIntegerType()) {
       Decl *decl = declref->getFoundDecl();
 
-      int val = mStack.back().tryGetDeclVal(decl)
-                      .value_or(getGlobalDeclVal(decl));
+      int val;
+      try {
+        val = mStack.back().tryGetDeclVal(decl).value();
+      } catch (const std::bad_optional_access& e) {
+        val = getGlobalDeclVal(decl);
+      }
 
       mStack.back().bindStmt(declref, val);
     }
@@ -179,7 +184,7 @@ public:
     }
   }
 
-  void call(CallExpr *callexpr) {
+  bool tryCallBuiltInFunc(CallExpr *callexpr) {
     mStack.back().setPC(callexpr);
     int val = 0;
     FunctionDecl *callee = callexpr->getDirectCallee();
@@ -197,8 +202,29 @@ public:
     } else if (callee == mFree) {
 
     } else {
-
+      return false;
     }
+    return true;
+  }
+
+  void createFuncStack(CallExpr *call) {
+    auto callee = call->getDirectCallee();
+    assert(callee->getNumParams() == call->getNumArgs());
+    StackFrame newFrame;
+    for (auto arg = call->arg_begin(); arg != call->arg_end(); arg++) {
+      newFrame.bindDecl(callee->getParamDecl(arg - call->arg_begin()), mStack.back().getStmtVal(*arg));
+    }
+    mStack.push_back(newFrame);
+  }
+
+  void deleteFuncStack(CallExpr *call) {
+    auto retVal = mStack.back().retValue;
+    mStack.pop_back();
+    mStack.back().bindStmt(call, retVal);
+  }
+
+  void ret(ReturnStmt *retstmt) {
+    mStack.back().retValue = mStack.back().getStmtVal(retstmt->getRetValue());
   }
 };
 
