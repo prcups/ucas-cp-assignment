@@ -38,7 +38,10 @@ public:
       mEnv->deleteFuncStack(call);
     }
   }
-  virtual void VisitDeclStmt(DeclStmt *declstmt) { mEnv->handleDeclStmt(declstmt); }
+  virtual void VisitDeclStmt(DeclStmt *declstmt) {
+    VisitStmt(declstmt);
+    mEnv->handleDeclStmt(declstmt);
+  }
   virtual void VisitIntegerLiteral(IntegerLiteral *integer) {
     mEnv->handleIntliteral(integer);
   }
@@ -49,9 +52,24 @@ public:
 
   virtual void VisitIfStmt(IfStmt *ifstmt) {
     if (ifstmt->hasInitStorage()) Visit(ifstmt->getInit());
-    Visit(ifstmt->getCond());
-    if (mEnv->handleIfStmt(ifstmt)) Visit(ifstmt->getThen());
+    auto cond = ifstmt->getCond();
+    Visit(cond);
+    if (mEnv->checkCondition(cond)) Visit(ifstmt->getThen());
     else if (ifstmt->hasElseStorage()) Visit(ifstmt->getElse());
+  }
+  virtual void VisitUnaryOperator(UnaryOperator *uop) {
+    VisitStmt(uop);
+    mEnv->handleUnaryOperator(uop);
+  }
+  virtual void VisitForStmt(ForStmt *forstmt) {
+    throw(std::runtime_error("UnsupportForStmt"));
+  }
+  virtual void VisitWhileStmt(WhileStmt *whilestmt) {
+    auto cond = whilestmt->getCond();
+    do {
+      Visit(cond);
+      Visit(whilestmt->getBody());
+    } while (mEnv->checkCondition(cond));
   }
 
 private:

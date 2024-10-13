@@ -4,8 +4,8 @@
 #ifndef ENVIRONMENT_H_INCLUDED
 #define ENVIRONMENT_H_INCLUDED
 
-#include <iostream>
 #include <stdexcept>
+#include <iostream>
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -129,7 +129,6 @@ public:
 
   FunctionDecl *getEntry() { return mEntry; }
 
-  /// !TODO Support comparison operation
   void handleBinOp(BinaryOperator *bop) {
     Expr *left = bop->getLHS(),
           *right = bop->getRHS();
@@ -189,7 +188,11 @@ public:
          it != ie; ++it) {
       Decl *decl = *it;
       if (VarDecl *vardecl = dyn_cast<VarDecl>(decl)) {
-        mStack.back().bindDecl(vardecl, 10);
+        mStack.back().bindDecl(vardecl,
+                               vardecl->hasInit() ?
+                               mStack.back().getStmtVal(vardecl->getInit()) :
+                               0
+        );
       }
     }
   }
@@ -223,18 +226,17 @@ public:
     int val = 0;
     FunctionDecl *callee = callexpr->getDirectCallee();
     if (callee == mInput) {
-      llvm::errs() << "Please Input an Integer Value : ";
-      scanf("%d", &val);
-
+      llvm::errs() << "Please Input an Integer Value : \n";
+      std::cin >> val;
       mStack.back().bindStmt(callexpr, val);
     } else if (callee == mOutput) {
       Expr *decl = callexpr->getArg(0);
       val = mStack.back().getStmtVal(decl);
-      llvm::errs() << val;
+      llvm::errs() << val << '\n';
     } else if (callee == mMalloc) {
-
+        throw(std::runtime_error("UnsupportMalloc"));
     } else if (callee == mFree) {
-
+        throw(std::runtime_error("UnsupportFree"));
     } else {
       return false;
     }
@@ -264,10 +266,14 @@ public:
     mStack.back().retValue = mStack.back().getStmtVal(retstmt->getRetValue());
   }
 
-  bool handleIfStmt(IfStmt *ifstmt) {
-    if (mStack.back().getStmtVal(ifstmt->getCond()))
+  bool checkCondition(Expr *expr) {
+    if (mStack.back().getStmtVal(expr))
       return true;
     else return false;
+  }
+
+  void handleUnaryOperator(UnaryOperator *uop) {
+    mStack.back().bindStmt(uop, -1 * mStack.back().getStmtVal(uop->getSubExpr()));
   }
 };
 
