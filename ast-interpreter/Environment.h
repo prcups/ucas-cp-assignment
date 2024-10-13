@@ -4,8 +4,8 @@
 #ifndef ENVIRONMENT_H_INCLUDED
 #define ENVIRONMENT_H_INCLUDED
 
-#include <stdio.h>
-
+#include <iostream>
+#include <stdexcept>
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -31,7 +31,11 @@ public:
   void bindDecl(Decl *decl, int val) { mVars[decl] = val; }
   int getDeclVal(Decl *decl) {
     auto rel = mVars.find(decl);
-    assert(rel != mVars.end());
+    if (rel == mVars.end()) {
+      decl->dump();
+      llvm::errs() << "Address: " << decl << "\n";
+      throw(std::runtime_error("VarNotFound"));
+    }
     return rel->second;
   }
   std::optional <int> tryGetDeclVal(Decl *decl) {
@@ -44,7 +48,11 @@ public:
   void bindStmt(Stmt *stmt, int val) { mExprs[stmt] = val; }
   int getStmtVal(Stmt *stmt) {
     auto rel = mExprs.find(stmt);
-    assert(rel != mExprs.end());
+    if (rel == mExprs.end()) {
+      stmt->dump();
+      llvm::errs() << "Address: " << stmt << "\n";
+      throw(std::runtime_error("StmtNotFound"));
+    }
     return rel->second;
   }
   std::optional <int> tryGetStmtVal(Stmt *stmt) {
@@ -58,31 +66,22 @@ public:
   Stmt *getPC() { return mPC; }
 };
 
-/// Heap maps address to a value
-/*
-class Heap {
-public:
-   int Malloc(int size) ;
-   void Free (int addr) ;
-   void Update(int addr, int val) ;
-   int get(int addr);
-};
-*/
-
 class Environment {
   std::vector<StackFrame> mStack;
 
-  FunctionDecl *mFree; /// Declartions to the built-in functions
+  FunctionDecl *mFree;
   FunctionDecl *mMalloc;
   FunctionDecl *mInput;
   FunctionDecl *mOutput;
 
   FunctionDecl *mEntry;
 
-  // std::map<std::string_view, FunctionDecl *> mFunctions;
   std::map<Decl *, int> gVars;
   int getGlobalDeclVal(Decl *decl) {
-    assert(gVars.find(decl) != gVars.end());
+    if (gVars.find(decl) == gVars.end()) {
+      decl->dump();
+      throw(std::runtime_error("GlobalDeclNotFound"));
+    }
     return gVars.find(decl)->second;
   }
 
@@ -131,7 +130,7 @@ public:
   FunctionDecl *getEntry() { return mEntry; }
 
   /// !TODO Support comparison operation
-  void binop(BinaryOperator *bop) {
+  void handleBinOp(BinaryOperator *bop) {
     Expr *left = bop->getLHS();
     Expr *right = bop->getRHS();
 
@@ -164,17 +163,16 @@ public:
         break;
       }
       default: {
-        printf("Unsupport BinaryOperator\n");
-        assert(false);
+        throw(std::runtime_error("UnsupportedOp"));
       }
     }
   }
 
-  void intliteral(IntegerLiteral *integer) {
+  void handleIntliteral(IntegerLiteral *integer) {
     mStack.back().bindStmt(integer, integer->getValue().getSExtValue());
   }
 
-  void decl(DeclStmt *declstmt) {
+  void handleDeclStmt(DeclStmt *declstmt) {
     for (DeclStmt::decl_iterator it = declstmt->decl_begin(),
                                  ie = declstmt->decl_end();
          it != ie; ++it) {
@@ -184,7 +182,7 @@ public:
       }
     }
   }
-  void declref(DeclRefExpr *declref) {
+  void handleDeclRef(DeclRefExpr *declref) {
     mStack.back().setPC(declref);
     if (declref->getType()->isIntegerType()) {
       Decl *decl = declref->getFoundDecl();
@@ -200,7 +198,7 @@ public:
     }
   }
 
-  void cast(CastExpr *castexpr) {
+  void handleCast(CastExpr *castexpr) {
     mStack.back().setPC(castexpr);
     if (castexpr->getType()->isIntegerType()) {
       Expr *expr = castexpr->getSubExpr();
@@ -234,7 +232,10 @@ public:
 
   void createFuncStack(CallExpr *call) {
     auto callee = call->getDirectCallee();
-    assert(callee->getNumParams() == call->getNumArgs());
+    if (callee->getNumParams() != call->getNumArgs()) {
+      call->dump();
+      throw(std::runtime_error("FuncNotMatch"));
+    }
     StackFrame newFrame;
     for (auto arg = call->arg_begin(); arg != call->arg_end(); arg++) {
       newFrame.bindDecl(callee->getParamDecl(arg - call->arg_begin()), mStack.back().getStmtVal(*arg));
@@ -248,8 +249,14 @@ public:
     mStack.back().bindStmt(call, retVal);
   }
 
-  void ret(ReturnStmt *retstmt) {
+  void handleRetStmt(ReturnStmt *retstmt) {
     mStack.back().retValue = mStack.back().getStmtVal(retstmt->getRetValue());
+  }
+
+  bool handleIfStmt(IfStmt *ifstmt) {
+    if (mStack.back().getStmtVal(ifstmt->getCond()))
+      return true;
+    else return false;
   }
 };
 

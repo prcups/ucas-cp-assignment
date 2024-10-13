@@ -20,15 +20,15 @@ public:
 
   virtual void VisitBinaryOperator(BinaryOperator *bop) {
     VisitStmt(bop);
-    mEnv->binop(bop);
+    mEnv->handleBinOp(bop);
   }
   virtual void VisitDeclRefExpr(DeclRefExpr *expr) {
     VisitStmt(expr);
-    mEnv->declref(expr);
+    mEnv->handleDeclRef(expr);
   }
   virtual void VisitCastExpr(CastExpr *expr) {
     VisitStmt(expr);
-    mEnv->cast(expr);
+    mEnv->handleCast(expr);
   }
   virtual void VisitCallExpr(CallExpr *call) {
     VisitStmt(call);
@@ -38,21 +38,20 @@ public:
       mEnv->deleteFuncStack(call);
     }
   }
-  virtual void VisitDeclStmt(DeclStmt *declstmt) { mEnv->decl(declstmt); }
+  virtual void VisitDeclStmt(DeclStmt *declstmt) { mEnv->handleDeclStmt(declstmt); }
   virtual void VisitIntegerLiteral(IntegerLiteral *integer) {
-    mEnv->intliteral(integer);
+    mEnv->handleIntliteral(integer);
   }
   virtual void VisitReturnStmt(ReturnStmt *retstmt) {
     VisitStmt(retstmt);
-    mEnv->ret(retstmt);
+    mEnv->handleRetStmt(retstmt);
   }
 
-  virtual void VisitStmt(Stmt *stmt) {
-    printf("*********************************\n");
-    stmt->dump();
-    for (auto *substmt : stmt->children())
-      if (substmt)
-        this->Visit(substmt);
+  virtual void VisitIfStmt(IfStmt *ifstmt) {
+    if (ifstmt->hasInitStorage()) Visit(ifstmt->getInit());
+    Visit(ifstmt->getCond());
+    if (mEnv->handleIfStmt(ifstmt)) Visit(ifstmt->getThen());
+    else if (ifstmt->hasElseStorage()) Visit(ifstmt->getElse());
   }
 
 private:
