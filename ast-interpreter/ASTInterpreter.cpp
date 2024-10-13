@@ -49,7 +49,6 @@ public:
     VisitStmt(retstmt);
     mEnv->handleRetStmt(retstmt);
   }
-
   virtual void VisitIfStmt(IfStmt *ifstmt) {
     if (ifstmt->hasInitStorage()) Visit(ifstmt->getInit());
     auto cond = ifstmt->getCond();
@@ -62,14 +61,22 @@ public:
     mEnv->handleUnaryOperator(uop);
   }
   virtual void VisitForStmt(ForStmt *forstmt) {
-    throw(std::runtime_error("UnsupportForStmt"));
+    Visit(forstmt->getInit());
+    auto cond = forstmt->getCond();
+    Visit(cond);
+    while (mEnv->checkCondition(cond)) {
+      Visit(forstmt->getBody());
+      Visit(forstmt->getInc());
+      Visit(cond);
+    }
   }
   virtual void VisitWhileStmt(WhileStmt *whilestmt) {
     auto cond = whilestmt->getCond();
-    do {
-      Visit(cond);
+    Visit(cond);
+    while (mEnv->checkCondition(cond)) {
       Visit(whilestmt->getBody());
-    } while (mEnv->checkCondition(cond));
+      Visit(cond);
+    }
   }
 
 private:
