@@ -1,0 +1,10 @@
+Requirements: Implement a basic interpreter based on Clang
+
+Marking: 25 testcases are provided and each test case counts for 1 mark
+
+Supported Language: We support a subset of C language constructs, as follows:
+
+Type: int | char | void | *
+Operator: * | + | - | * | / | < | > | == | = | [ ]
+Statements: IfStmt | WhileStmt | ForStmt | DeclStmt
+Expr : BinaryOperator | UnaryOperator | DeclRefExpr | CallExpr | CastExpr

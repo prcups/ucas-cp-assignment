@@ -135,12 +135,37 @@ public:
     Expr *left = bop->getLHS();
     Expr *right = bop->getRHS();
 
-    if (bop->isAssignmentOp()) {
-      int val = mStack.back().getStmtVal(right);
-      mStack.back().bindStmt(left, val);
-      if (DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left)) {
-        Decl *decl = declexpr->getFoundDecl();
-        mStack.back().bindDecl(decl, val);
+    switch (bop->getOpcode()) {
+      case BO_Assign: {
+        int val = mStack.back().getStmtVal(right);
+        mStack.back().bindStmt(left, val);
+        if (DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left)) {
+          Decl *decl = declexpr->getFoundDecl();
+          mStack.back().bindDecl(decl, val);
+        }
+        break;
+      }
+      case BO_Add: {
+        int valLeft = mStack.back().getStmtVal(left),
+            valRight = mStack.back().getStmtVal(right);
+        mStack.back().bindStmt(bop, valLeft + valRight);
+        break;
+      }
+      case BO_Sub: {
+        int valLeft = mStack.back().getStmtVal(left),
+            valRight = mStack.back().getStmtVal(right);
+        mStack.back().bindStmt(bop, valLeft - valRight);
+        break;
+      }
+      case BO_GT: {
+        int valLeft = mStack.back().getStmtVal(left),
+            valRight = mStack.back().getStmtVal(right);
+        mStack.back().bindStmt(bop, valLeft > valRight ? 1 : 0);
+        break;
+      }
+      default: {
+        printf("Unsupport BinaryOperator\n");
+        assert(false);
       }
     }
   }
