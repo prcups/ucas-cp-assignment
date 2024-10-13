@@ -131,35 +131,46 @@ public:
 
   /// !TODO Support comparison operation
   void handleBinOp(BinaryOperator *bop) {
-    Expr *left = bop->getLHS();
-    Expr *right = bop->getRHS();
+    Expr *left = bop->getLHS(),
+          *right = bop->getRHS();
+    int valLeft = mStack.back().getStmtVal(left),
+          valRight = mStack.back().getStmtVal(right);
 
     switch (bop->getOpcode()) {
       case BO_Assign: {
-        int val = mStack.back().getStmtVal(right);
-        mStack.back().bindStmt(left, val);
+        mStack.back().bindStmt(left, valRight);
         if (DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left)) {
           Decl *decl = declexpr->getFoundDecl();
-          mStack.back().bindDecl(decl, val);
+          mStack.back().bindDecl(decl, valRight);
         }
         break;
       }
       case BO_Add: {
-        int valLeft = mStack.back().getStmtVal(left),
-            valRight = mStack.back().getStmtVal(right);
         mStack.back().bindStmt(bop, valLeft + valRight);
         break;
       }
       case BO_Sub: {
-        int valLeft = mStack.back().getStmtVal(left),
-            valRight = mStack.back().getStmtVal(right);
         mStack.back().bindStmt(bop, valLeft - valRight);
         break;
       }
+      case BO_Mul: {
+        mStack.back().bindStmt(bop, valLeft * valRight);
+        break;
+      }
+      case BO_Div: {
+        mStack.back().bindStmt(bop, valLeft / valRight);
+        break;
+      }
       case BO_GT: {
-        int valLeft = mStack.back().getStmtVal(left),
-            valRight = mStack.back().getStmtVal(right);
         mStack.back().bindStmt(bop, valLeft > valRight ? 1 : 0);
+        break;
+      }
+      case BO_EQ: {
+        mStack.back().bindStmt(bop, valLeft == valRight ? 1 : 0);
+        break;
+      }
+      case BO_LT: {
+        mStack.back().bindStmt(bop, valLeft < valRight ? 1 : 0);
         break;
       }
       default: {
