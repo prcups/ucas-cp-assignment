@@ -78,6 +78,10 @@ public:
       Visit(cond);
     }
   }
+  virtual void VisitArraySubscriptExpr(ArraySubscriptExpr *arrayexpr) {
+    VisitStmt(arrayexpr);
+    mEnv->handleArrayExpr(arrayexpr);
+  }
 
 private:
   Environment *mEnv;

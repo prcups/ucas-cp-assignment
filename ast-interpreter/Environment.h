@@ -21,12 +21,13 @@ class StackFrame {
   /// value)
   std::map<Decl *, int> mVars;
   std::map<Stmt *, int> mExprs;
+  std::map<Decl *, std::vector<int> > mArrays;
   /// The current stmt
-  Stmt *mPC;
+  //Stmt *mPC;
 
 public:
   int retValue = 0;
-  StackFrame() : mVars(), mExprs(), mPC() {}
+  StackFrame() : mVars(), mExprs() {}
 
   void bindDecl(Decl *decl, int val) { mVars[decl] = val; }
   int getDeclVal(Decl *decl) {
@@ -45,6 +46,21 @@ public:
     }
     return rel->second;
   }
+  void bindDeclArray(Decl *decl, int num) {
+    mArrays[decl] = std::vector<int>(num);
+  }
+  void setArrayVal(Decl *decl, int val, int index) {
+    mArrays[decl][index] = val;
+  }
+  int getArrayVal(Decl *decl, int index) {
+    auto rel = mArrays.find(decl);
+    if (rel == mArrays.end()) {
+      decl->dump();
+      llvm::errs() << "Address: " << decl << "\n";
+      throw(std::runtime_error("ArrayNotFound"));
+    }
+    return rel->second.at(index);
+  }
   void bindStmt(Stmt *stmt, int val) { mExprs[stmt] = val; }
   int getStmtVal(Stmt *stmt) {
     auto rel = mExprs.find(stmt);
@@ -62,8 +78,8 @@ public:
     }
     return rel->second;
   }
-  void setPC(Stmt *stmt) { mPC = stmt; }
-  Stmt *getPC() { return mPC; }
+  // void setPC(Stmt *stmt) { mPC = stmt; }
+  // Stmt *getPC() { return mPC; }
 };
 
 class Environment {
@@ -77,12 +93,21 @@ class Environment {
   FunctionDecl *mEntry;
 
   std::map<Decl *, int> gVars;
+
   int getGlobalDeclVal(Decl *decl) {
     if (gVars.find(decl) == gVars.end()) {
       decl->dump();
       throw(std::runtime_error("GlobalDeclNotFound"));
     }
     return gVars.find(decl)->second;
+  }
+
+  Decl *getBaseDecl(Expr *expr) {
+    if (DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(expr))
+      return declRef->getDecl();
+    else if (ImplicitCastExpr *castExpr = dyn_cast<ImplicitCastExpr>(expr))
+      return getBaseDecl(castExpr->getSubExpr());
+    else return nullptr;
   }
 
 public:
@@ -139,8 +164,12 @@ public:
       case BO_Assign: {
         mStack.back().bindStmt(left, valRight);
         if (DeclRefExpr *declexpr = dyn_cast<DeclRefExpr>(left)) {
-          Decl *decl = declexpr->getFoundDecl();
+          auto decl = declexpr->getFoundDecl();
           mStack.back().bindDecl(decl, valRight);
+        } else if (ArraySubscriptExpr *array = dyn_cast<ArraySubscriptExpr>(left)) {
+          auto decl = getBaseDecl(array->getBase());
+          auto index = mStack.back().getStmtVal(array->getIdx());
+          mStack.back().setArrayVal(decl, valRight, index);
         }
         break;
       }
@@ -188,16 +217,22 @@ public:
          it != ie; ++it) {
       Decl *decl = *it;
       if (VarDecl *vardecl = dyn_cast<VarDecl>(decl)) {
-        mStack.back().bindDecl(vardecl,
-                               vardecl->hasInit() ?
-                               mStack.back().getStmtVal(vardecl->getInit()) :
-                               0
-        );
+        if (vardecl->getType()->isArrayType()) {
+          const ConstantArrayType *array =
+              dyn_cast<ConstantArrayType>(vardecl->getType().getTypePtr());
+          int size = array->getSize().getSExtValue();
+          mStack.back().bindDeclArray(vardecl, size);
+        } else {
+          mStack.back().bindDecl(vardecl,
+            vardecl->hasInit() ?
+            mStack.back().getStmtVal(vardecl->getInit()) :
+            0);
+        }
       }
     }
   }
   void handleDeclRef(DeclRefExpr *declref) {
-    mStack.back().setPC(declref);
+    //mStack.back().setPC(declref);
     if (declref->getType()->isIntegerType()) {
       Decl *decl = declref->getFoundDecl();
 
@@ -213,7 +248,7 @@ public:
   }
 
   void handleCast(CastExpr *castexpr) {
-    mStack.back().setPC(castexpr);
+    //mStack.back().setPC(castexpr);
     if (castexpr->getType()->isIntegerType()) {
       Expr *expr = castexpr->getSubExpr();
       int val = mStack.back().getStmtVal(expr);
@@ -222,7 +257,7 @@ public:
   }
 
   bool tryCallBuiltInFunc(CallExpr *callexpr) {
-    mStack.back().setPC(callexpr);
+    //mStack.back().setPC(callexpr);
     int val = 0;
     FunctionDecl *callee = callexpr->getDirectCallee();
     if (callee == mInput) {
@@ -274,6 +309,12 @@ public:
 
   void handleUnaryOperator(UnaryOperator *uop) {
     mStack.back().bindStmt(uop, -1 * mStack.back().getStmtVal(uop->getSubExpr()));
+  }
+
+  void handleArrayExpr(ArraySubscriptExpr *arrayexpr) {
+    auto decl = getBaseDecl(arrayexpr->getBase());
+    auto index = mStack.back().getStmtVal(arrayexpr->getIdx());
+    mStack.back().bindStmt(arrayexpr, mStack.back().getArrayVal(decl, index));
   }
 };
 
