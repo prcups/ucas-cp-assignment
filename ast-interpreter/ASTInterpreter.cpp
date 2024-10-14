@@ -61,7 +61,7 @@ public:
     mEnv->handleUnaryOperator(uop);
   }
   virtual void VisitForStmt(ForStmt *forstmt) {
-    Visit(forstmt->getInit());
+    if (forstmt->getInit()) Visit(forstmt->getInit());
     auto cond = forstmt->getCond();
     Visit(cond);
     while (mEnv->checkCondition(cond)) {
