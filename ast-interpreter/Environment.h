@@ -264,11 +264,10 @@ public:
   }
 
   void handleCast(CastExpr *castexpr) {
-    if (!castexpr->getType()->isFunctionPointerType()) {
       Expr *expr = castexpr->getSubExpr();
-      long val = mStack.back().getStmtVal(expr);
-      mStack.back().bindStmt(castexpr, val);
-    }
+      if (auto valOption = mStack.back().tryGetStmtVal(expr)) {
+        mStack.back().bindStmt(castexpr, valOption.value());
+      }
   }
 
   bool tryCallBuiltInFunc(CallExpr *callexpr) {
