@@ -95,11 +95,27 @@ class Environment {
   Decl *getBaseDecl(Expr *expr) {
     if (DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(expr)) {
       return declRef->getDecl();
-    } else if (ImplicitCastExpr *castExpr = dyn_cast<ImplicitCastExpr>(expr)) {
+    } else if (CastExpr *castExpr = dyn_cast<CastExpr>(expr)) {
       return getBaseDecl(castExpr->getSubExpr());
+    } else if (ParenExpr *paren = dyn_cast<ParenExpr>(expr)) {
+      return getBaseDecl(paren->getSubExpr());
     } else {
-      return nullptr;
+      expr->dump();
+      throw(std::runtime_error("NotADeclRef"));
     }
+  }
+
+  int getPtrWidth(Expr *expr) {
+    if (DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(expr)) {
+      if (auto ptrType = dyn_cast<PointerType>(declRef->getType())) {
+        auto pteType = ptrType->getPointeeType();
+        if (pteType.getAsString() == "char") return 1;
+        else return 8;
+      }
+    } else if (ImplicitCastExpr *castExpr = dyn_cast<ImplicitCastExpr>(expr)) {
+      return getPtrWidth(castExpr->getSubExpr());
+    }
+    return 0;
   }
 
 public:
@@ -164,9 +180,8 @@ public:
         mStack.back().setArrayVal(decl, valRight, index);
       } else if (UnaryOperator *ptr = dyn_cast<UnaryOperator>(left)) {
         if (ptr->getOpcode() == UO_Deref) {
-          auto decl = getBaseDecl(ptr->getSubExpr());
-          long *address = (long*) mStack.back().getDeclVal(decl);
-          *address = valRight;
+          long *addr = (long*) mStack.back().getStmtVal(ptr->getSubExpr());
+          *addr = valRight;
         } else {
           throw(std::runtime_error("UnsupportedUnaryOp"));
         }
@@ -174,6 +189,9 @@ public:
       break;
     }
     case BO_Add: {
+      int width;
+      if (width = getPtrWidth(left)) valRight *= width;
+      else if (width = getPtrWidth(right)) valLeft *= width;
       mStack.back().bindStmt(bop, valLeft + valRight);
       break;
     }
@@ -210,8 +228,9 @@ public:
   void handleUnaryOperator(UnaryOperator *uop) {
     switch (uop->getOpcode()) {
     case UO_Deref: {
+      auto addr = (long *)mStack.back().getStmtVal(uop->getSubExpr());
       mStack.back().bindStmt(
-          uop, *((long *)mStack.back().getStmtVal(uop->getSubExpr())));
+          uop, *addr);
       break;
     }
     case UO_Minus: {
@@ -285,7 +304,8 @@ public:
     } else if (callee == mMalloc) {
       Expr *decl = callexpr->getArg(0);
       auto val = mStack.back().getStmtVal(decl);
-      mStack.back().bindStmt(callexpr, (long)malloc(val));
+      auto addr = (long)malloc(val);
+      mStack.back().bindStmt(callexpr, addr);
     } else if (callee == mFree) {
       Expr *decl = callexpr->getArg(0);
       auto val = mStack.back().getStmtVal(decl);
@@ -335,7 +355,12 @@ public:
   }
 
   void handleSizeOf(UnaryExprOrTypeTraitExpr *sizeofexpr) {
+    //kaibai
     mStack.back().bindStmt(sizeofexpr, 8);
+  }
+
+  void handleParenExpr(ParenExpr *paren) {
+    mStack.back().bindStmt(paren, mStack.back().getStmtVal(paren->getSubExpr()));
   }
 };
 

@@ -90,6 +90,11 @@ public:
     mEnv->handleArrayExpr(arrayexpr);
   }
 
+  virtual void VisitParenExpr(ParenExpr *paren) {
+    VisitStmt(paren);
+    mEnv->handleParenExpr(paren);
+  }
+
 private:
   Environment *mEnv;
 };
