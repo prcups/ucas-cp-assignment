@@ -19,6 +19,7 @@ class StackFrame {
 
 public:
   long retValue = 0;
+  bool returned = false;
   StackFrame() : mVars(), mExprs() {}
 
   void bindDecl(Decl *decl, long val) { mVars[decl] = val; }
@@ -163,6 +164,7 @@ public:
   FunctionDecl *getEntry() { return mEntry; }
 
   void handleBinOp(BinaryOperator *bop) {
+    if (mStack.back().returned) return;
     Expr *left = bop->getLHS(), *right = bop->getRHS();
     long valLeft = mStack.back().getStmtVal(left),
         valRight = mStack.back().getStmtVal(right);
@@ -226,6 +228,7 @@ public:
   }
 
   void handleUnaryOperator(UnaryOperator *uop) {
+    if (mStack.back().returned) return;
     switch (uop->getOpcode()) {
     case UO_Deref: {
       auto addr = (long *)mStack.back().getStmtVal(uop->getSubExpr());
@@ -244,10 +247,12 @@ public:
   }
 
   void handleIntliteral(IntegerLiteral *integer) {
+    if (mStack.back().returned) return;
     mStack.back().bindStmt(integer, integer->getValue().getSExtValue());
   }
 
   void handleDeclStmt(DeclStmt *declstmt) {
+    if (mStack.back().returned) return;
     for (DeclStmt::decl_iterator it = declstmt->decl_begin(),
                                  ie = declstmt->decl_end();
          it != ie; ++it) {
@@ -269,6 +274,7 @@ public:
   }
 
   void handleDeclRef(DeclRefExpr *declref) {
+    if (mStack.back().returned) return;
     if (declref->getType()->isIntegerType() || declref->getType()->isPointerType()) {
       Decl *decl = declref->getFoundDecl();
 
@@ -283,13 +289,15 @@ public:
   }
 
   void handleCast(CastExpr *castexpr) {
-      Expr *expr = castexpr->getSubExpr();
-      if (auto valOption = mStack.back().tryGetStmtVal(expr)) {
-        mStack.back().bindStmt(castexpr, valOption.value());
-      }
+    if (mStack.back().returned) return;
+    Expr *expr = castexpr->getSubExpr();
+    if (auto valOption = mStack.back().tryGetStmtVal(expr)) {
+      mStack.back().bindStmt(castexpr, valOption.value());
+    }
   }
 
   bool tryCallBuiltInFunc(CallExpr *callexpr) {
+    if (mStack.back().returned) return true;
     auto callee = callexpr->getDirectCallee();
     if (callee == mInput) {
       long val;
@@ -337,10 +345,13 @@ public:
   }
 
   void handleRetStmt(ReturnStmt *retstmt) {
+    if (mStack.back().returned) return;
+    mStack.back().returned = true;
     mStack.back().retValue = mStack.back().getStmtVal(retstmt->getRetValue());
   }
 
   bool checkCondition(Expr *expr) {
+    if (mStack.back().returned) return false;
     if (mStack.back().getStmtVal(expr)) {
       return true;
     } else {
@@ -349,17 +360,20 @@ public:
   }
 
   void handleArrayExpr(ArraySubscriptExpr *arrayexpr) {
+    if (mStack.back().returned) return;
     auto decl = getBaseDecl(arrayexpr->getBase());
     auto index = mStack.back().getStmtVal(arrayexpr->getIdx());
     mStack.back().bindStmt(arrayexpr, mStack.back().getArrayVal(decl, index));
   }
 
   void handleSizeOf(UnaryExprOrTypeTraitExpr *sizeofexpr) {
+    if (mStack.back().returned) return;
     //kaibai
     mStack.back().bindStmt(sizeofexpr, 8);
   }
 
   void handleParenExpr(ParenExpr *paren) {
+    if (mStack.back().returned) return;
     mStack.back().bindStmt(paren, mStack.back().getStmtVal(paren->getSubExpr()));
   }
 };
