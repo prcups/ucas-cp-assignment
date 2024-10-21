@@ -32,12 +32,12 @@ public:
     }
     return rel->second;
   }
-  std::optional<long> tryGetDeclVal(Decl *decl) {
+  bool hasDeclVal(Decl *decl) {
     auto rel = mVars.find(decl);
     if (rel == mVars.end()) {
-      return {};
+      return false;
     }
-    return rel->second;
+    return true;
   }
   void bindDeclArray(Decl *decl, long num) {
     mArrays[decl] = std::vector<long>(num);
@@ -64,12 +64,12 @@ public:
     }
     return rel->second;
   }
-  std::optional<long> tryGetStmtVal(Stmt *stmt) {
+  bool hasStmtVal(Stmt *stmt) {
     auto rel = mExprs.find(stmt);
     if (rel == mExprs.end()) {
-      return {};
+      return false;
     }
-    return rel->second;
+    return true;
   }
 };
 
@@ -151,8 +151,8 @@ public:
   void initGlobalVar(std::vector<VarDecl *> &gVarDeclList) {
     for (auto vdecl : gVarDeclList) {
       Stmt *initStmt = vdecl->getInit();
-      if (auto rel = mStack.back().tryGetStmtVal(initStmt)) {
-        gVars[vdecl] = rel.value();
+      if (mStack.back().hasStmtVal(initStmt)) {
+        gVars[vdecl] = mStack.back().getStmtVal(initStmt);
       } else {
         gVars[vdecl] = 0;
       }
@@ -279,8 +279,8 @@ public:
       Decl *decl = declref->getFoundDecl();
 
       long val;
-      if (auto valOption = mStack.back().tryGetDeclVal(decl)) {
-        val = valOption.value();
+      if (mStack.back().hasDeclVal(decl)) {
+        val = mStack.back().getDeclVal(decl);
       } else {
         val = getGlobalDeclVal(decl);
       }
@@ -291,8 +291,8 @@ public:
   void handleCast(CastExpr *castexpr) {
     if (mStack.back().returned) return;
     Expr *expr = castexpr->getSubExpr();
-    if (auto valOption = mStack.back().tryGetStmtVal(expr)) {
-      mStack.back().bindStmt(castexpr, valOption.value());
+    if (mStack.back().hasStmtVal(expr)) {
+      mStack.back().bindStmt(castexpr, mStack.back().getStmtVal(expr));
     }
   }
 
